@@ -36,25 +36,38 @@ def download_pdf(pdf_url: str, local_file_path: str) -> None:
         local_file_path (str): The path (including filename) to save the downloaded PDF.
     """
     try:
-        # Check if the destination file already exists
-        if check_file_exists(local_file_path):
-            print(f"File already exists at {local_file_path}.")
-            return
-        # Make a GET request to the PDF URL with streaming enabled
-        response = requests.get(pdf_url, stream=True)
-        response.raise_for_status()  # Raise an error for bad HTTP status codes
+        save_folder = "PDFs"  # Folder where PDFs will be saved
+        os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
-        # Open the destination file in binary write mode
-        with open(local_file_path, "wb") as pdf_file:
-            # Write the file in chunks to avoid memory issues
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:  # Only write non-empty chunks
-                    pdf_file.write(chunk)
+        filename = url_to_filename(pdf_url)  # Extract the filename from the URL
+        local_file_path = os.path.join(
+            save_folder, filename
+        )  # Construct the full file path
 
-        print(f"PDF successfully downloaded to: {local_file_path}")
+        if check_file_exists(local_file_path):  # Check if the file already exists
+            print(f"File already exists: {local_file_path}")  # Notify the user
+            return  # Skip download if file is already present
 
-    except requests.exceptions.RequestException as error:
-        print(f"Failed to download PDF: {error}")
+        response = requests.get(
+            pdf_url, stream=True
+        )  # Send a GET request with streaming enabled
+        response.raise_for_status()  # Raise an exception if the response has an HTTP error
+
+        with open(
+            local_file_path, "wb"
+        ) as pdf_file:  # Open the file in binary write mode
+            for chunk in response.iter_content(
+                chunk_size=8192
+            ):  # Read the response in chunks
+                if chunk:  # Skip empty chunks
+                    pdf_file.write(chunk)  # Write each chunk to the file
+
+        print(f"Downloaded: {local_file_path}")  # Notify successful download
+
+    except (
+        requests.exceptions.RequestException
+    ) as error:  # Catch any request-related errors
+        print(f"Failed to download {pdf_url}: {error}")  # Print an error message
 
 
 def download_file_from_url(file_url: str, destination_path: str) -> None:
