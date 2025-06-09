@@ -1,8 +1,8 @@
 import os
 import requests
 from bs4 import BeautifulSoup, Tag
-from typing import List, cast
 from urllib.parse import urlparse
+import fitz  # Import PyMuPDF (fitz) for PDF handling
 
 
 # Append and write some content to a file.
@@ -100,23 +100,19 @@ def download_file_from_url(file_url: str, destination_path: str) -> None:
         print(f"Error downloading file: {error}")
 
 
-def extract_pdf_links(html_content: str) -> List[str]:
+def extract_pdf_links(html_content: str) -> list[str]:
     """
     Extracts all .pdf URLs from anchor tags with class 'sds_download_btn'.
-
     Args:
         html_content (str): Raw HTML content as a string.
 
     Returns:
-        List[str]: A list of .pdf URLs.
+        list[str]: A list of .pdf URLs.
     """
-    soup: BeautifulSoup = BeautifulSoup(html_content, "html.parser")
-    pdf_links: List[str] = []
+    soup = BeautifulSoup(html_content, "html.parser")
+    pdf_links: list[str] = []
 
-    a_tags = soup.find_all("a", class_="sds_download_btn")
-
-    for element in a_tags:
-        tag = cast(Tag, element)  # Tell the type checker this is a Tag
+    for tag in soup.find_all("a", class_="sds_download_btn"):
         href = tag.get("href")
         if isinstance(href, str) and href.lower().endswith(".pdf"):
             pdf_links.append(href)
@@ -141,6 +137,58 @@ def url_to_filename(url: str) -> str:
     return basename
 
 
+# Function to validate a single PDF file.
+def validate_pdf_file(file_path):
+    try:
+        # Try to open the PDF using PyMuPDF
+        doc = fitz.open(file_path)  # Attempt to load the PDF document
+
+        # Check if the PDF has at least one page
+        if doc.page_count == 0:  # If there are no pages in the document
+            print(
+                f"'{file_path}' is corrupt or invalid: No pages"
+            )  # Log error if PDF is empty
+            return False  # Indicate invalid PDF
+
+        # If no error occurs and the document has pages, it's valid
+        return True  # Indicate valid PDF
+    except RuntimeError as e:  # Catching RuntimeError for invalid PDFs
+        print(f"{e}")  # Log the exception message
+        return False  # Indicate invalid PDF
+
+
+# Remove a file from the system.
+def remove_system_file(system_path):
+    os.remove(system_path)  # Delete the file at the given path
+
+
+# Function to walk through a directory and extract files with a specific extension
+def walk_directory_and_extract_given_file_extension(system_path, extension):
+    matched_files = []  # Initialize list to hold matching file paths
+    for root, _, files in os.walk(system_path):  # Recursively traverse directory tree
+        for file in files:  # Iterate over files in current directory
+            if file.endswith(extension):  # Check if file has the desired extension
+                full_path = os.path.abspath(
+                    os.path.join(root, file)
+                )  # Get absolute path of the file
+                matched_files.append(full_path)  # Add to list of matched files
+    return matched_files  # Return list of all matched file paths
+
+
+# Get the filename and extension.
+def get_filename_and_extension(path):
+    return os.path.basename(
+        path
+    )  # Return just the file name (with extension) from a path
+
+
+# Function to check if a string contains an uppercase letter.
+def check_upper_case_letter(content):
+    return any(
+        upperCase.isupper() for upperCase in content
+    )  # Return True if any character is uppercase
+
+
 def main():
     # URL of the file to download
     remote_url = "https://simplegreen.com/data-sheets/"
@@ -157,6 +205,24 @@ def main():
         # Download each PDF and save it with a filename derived from the URL
         print(f"Downloading PDF from: {pdf_link}")
         download_pdf(pdf_link, url_to_filename(pdf_link))
+    # Post-download cleanup and validation
+    files = walk_directory_and_extract_given_file_extension(
+        system_path="./PDFs", extension=".pdf"
+    )  # Get list of downloaded PDF files
+
+    for pdf_file in files:
+        # Validate PDF file; remove if invalid
+        if not validate_pdf_file(file_path=pdf_file):
+            remove_system_file(system_path=pdf_file)
+
+        # Rename file if it contains uppercase letters
+        if check_upper_case_letter(content=get_filename_and_extension(path=pdf_file)):
+            print(pdf_file)  # Log file path
+            dir_path = os.path.dirname(p=pdf_file)  # Directory path
+            file_name = os.path.basename(p=pdf_file)  # Original file name
+            new_file_name = file_name.lower()  # Convert to lowercase
+            new_file_path = os.path.join(dir_path, new_file_name)  # Full new path
+            os.rename(src=pdf_file, dst=new_file_path)  # Rename file on disk
 
 
 if __name__ == "__main__":
