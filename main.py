@@ -134,7 +134,7 @@ def url_to_filename(url: str) -> str:
     basename = os.path.basename(parsed.path)
     if isinstance(basename, bytes):
         return basename.decode("utf-8")
-    return basename
+    return basename.lower()
 
 
 # Function to validate a single PDF file.
